@@ -16,8 +16,36 @@ go 1.5 中
 2. G可能换P，P可能换M，当然尽量不换，G可以被lock在M上。
 3. G(runnable)可以能在全局队列中，
 
+# 一些特殊的东西
+# getg()
 
-# mutex
+* runtime/stubs.go
+
+```
+// getg returns the pointer to the current g.
+// The compiler rewrites calls to this function into instructions
+// that fetch the g directly (from TLS or from the dedicated register).
+func getg() *g
+```
+
+
+* [cmd/compile/internal/amd64/ggen.go](https://github.com/youngsofun/go/blob/master/src/cmd/compile/internal/amd64/ggen.go#L729)
+	
+```
+// res = runtime.getg()
+func getg(res *gc.Node) {...} // 这里 gc 是go compiler
+```
+
+* [cmd/compile/internal/arm64/galign.go](https://github.com/youngsofun/go/blob/master/src/cmd/compile/internal/amd64/galign.go#L101)
+
+```
+	gc.Thearch.Getg = getg
+```
+		
+
+## mutex
+
+
 
 * lock_sema.go
 	* // +build darwin nacl netbsd openbsd plan9 solaris windows
@@ -46,7 +74,65 @@ func newm(fn func(), _p_ *p)
 ```
 
 
+newm(fn func(), _p_ *p)  特殊，和系统调用fork/clone一样，一跑到他就是"花开两枝，各表一头"。
 
+
+clone实际跑的是 mstart()：
+```
+ret := clone(cloneFlags, stk, unsafe.Pointer(mp), unsafe.Pointer(mp.g0), unsafe.Pointer(funcPC(mstart)))
+```
+
+
+ newm()：
+```
+ 	 allocm:
+ 		 mp.mstartfn = fn 
+ 	 mp.nextp.set(_p_)
+```
+这里虽然叫mstartfn，但是实际执行是这样的：
+
+mstart():
+```
+	if fn := _g_.m.mstartfn; fn != nil {
+		fn()
+	}
+	if _g_.m.helpgc != 0 {
+		_g_.m.helpgc = 0
+		stopm()
+	} else if _g_.m != &m0 {
+		acquirep(_g_.m.nextp.ptr())
+		_g_.m.nextp = 0
+	}
+	schedule()
+```
+
+* 如果 p == nil， 就可以理解为一般的fork，跑fn , 如sysmon和mhelpgc。
+	* 问题来了：  他们不需要P就能跑吗？
+		* 对于helpgc，会直接stopm()
+		* 而sysmon是一个无限循环
+* 否则 就是先跑fn，除了nil就是mspinning， 然后跑p 
+
+
+
+
+	
+	
+newm 被调用链条：
+
+1. runtime.main() 
+	2. newm(sysmon, nil) 	
+2. startTheWorldWithSema() 会为每个P启动M，P如果没有带着M，就创建
+	3. newm(nil, p)	
+	4. newm(mhelpgc, nil)
+2. startm() Schedules some M to run the p (creates an M if necessary).
+	3. fn = mspinning； newm(fn, _p_) 
+	
+   * 被调用
+   	 * handoffp  // Hands off P from syscall or locked M.    
+   	 * wakep
+       * ready // g ready to run
+       * newproc1  // Create a new g 
+       
 * 注意一开始执行的是mstart， 另外还有个startm，stopm，
 	* mstart()：minit()然后 跑schedule()
 	* startm(_p_ *p, spinning bool) ：  
@@ -55,14 +141,6 @@ func newm(fn func(), _p_ *p)
 			* notewakeup(&mp.park)
 * 没有mstop。clone后"线程"执行结束就是结束了 ( P跑完一个（或一会儿）G 会找下一个，如果找不到，就futex_sleep, 所以最多GOMAXPROCS个物理线程因此 sleep)，但m结构体会放到 idle list 中
 	
-newm 被调用链条：
-
-1. start_the_word会为每个P启动M，P如果没有带着M，就创建
-2. startm()
-   * handoffp  // Hands off P from syscall or locked M.    
-   * wakep
-       * ready // g ready to run
-       * newproc1  // Create a new g 
 
           
 # P 
@@ -182,5 +260,4 @@ G 的状态
 		* m->gsignal
 	* gc... timer
 	
-
-
+	
