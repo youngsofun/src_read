@@ -214,6 +214,20 @@ P 最简单， 重要filed：
 
 ```
 
+### G 的创建
+
+```
+// 。。。 The compiler turns a go statement into a call to this.。。。
+
+func newproc(siz int32, fn *funcval) {
+	argp := add(unsafe.Pointer(&fn), ptrSize)
+	pc := getcallerpc(unsafe.Pointer(&siz))
+	systemstack(func() {
+		newproc1(fn, (*uint8)(argp), siz, 0, pc)
+	})
+}
+```
+
 
 
 ### G 调度

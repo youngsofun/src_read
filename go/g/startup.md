@@ -70,17 +70,6 @@ ok:
 		* main_main // 这两个是user写的吧？ sysmon 什么时候跑？
 		* exit(0)
 
-这里创建G的方法和程序中"go foo()"是类似的：
-
-```
-// 。。。 The compiler turns a go statement into a call to this.。。。
-
-func newproc(siz int32, fn *funcval) {
-	argp := add(unsafe.Pointer(&fn), ptrSize)
-	pc := getcallerpc(unsafe.Pointer(&siz))
-	systemstack(func() {
-		newproc1(fn, (*uint8)(argp), siz, 0, pc)
-	})
-}
+这里创建G的方法和程序中"go foo()"是类似的
 ```
 
