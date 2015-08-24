@@ -1,4 +1,9 @@
 
+1. [基础](#jichu)
+   1. [getg](#getg)
+   1. [mutex](#mutex)
+
+
 
 go 1.5 中
 结构定义在 [runtime2.go](https://github.com/youngsofun/go/blob/master/src/runtime/runtime2.go#L211) 中,
@@ -16,8 +21,8 @@ go 1.5 中
 2. G可能换P，P可能换M，当然尽量不换，G可以被lock在M上。
 3. G(runnable)可以能在全局队列中，
 
-# 一些特殊的东西
-# getg()
+# [基础](id:jichu)
+# [getg](id:getg)
 
 * runtime/stubs.go
 
@@ -43,7 +48,7 @@ func getg(res *gc.Node) {...} // 这里 gc 是go compiler
 ```
 		
 
-## mutex
+## [mutex](id:mutex)
 
 
 
