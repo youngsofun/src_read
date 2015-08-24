@@ -264,6 +264,40 @@ G 的状态
     
 ![](imgs/goroutine.png)
 
+```
+A: runnable
+R: running
+S: syscall
+W: waiting
+```
+
+##调度时机
+
+1. futex
+
+	sleep/Lock internal
+1. blocking syscall
+1. netpoll
+	
+	socket, pipe
+1. chan
+1. syncSema （count may < 0）
+	
+	mutex, cond
+	rwmutex (write-preferring)
+1. timer
+
+1. preemption
+	
+	syscall block > 20us
+	
+	running > 10 ms
+
+## sysmon
+
+1. run every 20 us
+1. netpoll every 10ms  （nb）
+1. preemption
 
 #G
 ### G分类

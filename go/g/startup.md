@@ -63,13 +63,9 @@ ok:
 	* newproc // make & queue new G， 用来跑
 	* mstart() // schedule, 把刚准备好的G跑起来
 	* runtime.main()
-		* newm(sysmon, nil) // sysmon听起来很霸气，但是只是一个普通的G？一个线程？什么时候开炮？
+		* newm(sysmon, nil) //这时候在fork另一个线程，跑起来了
 		* runtime_init
 		* gcenable
 		* main_init
-		* main_main // 这两个是user写的吧？ sysmon 什么时候跑？
+		* main_main // 这两个是user写的吧？
 		* exit(0)
-
-这里创建G的方法和程序中"go foo()"是类似的
-```
-
