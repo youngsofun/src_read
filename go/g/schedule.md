@@ -6,12 +6,12 @@
      2. [G 状态](#gstats)
 	 3. [状态迁移图](#change_graph)
 2. [调度时机，即什么时候停、停谁？](#when)
-	3. sysmon, 抢占
+	3. sysmon, 抢占 （syscall block > 20us； running > 10 ms）
 	4. epoll
 	5. syscall
 	6. futex (sleep/Lock internal)
 	7. chan
-	8. syncSema (sync包:mutex, cond..)
+	8. syncSema (sync包:mutex, cond..， rwmutex (write-preferring))
 	9. timer
 9. 
 
@@ -46,27 +46,10 @@ P的工作就是：不停的找G，跑之
 7. execute(gp, inheritTime)
 
 
-# [调度时机，即什么时候停、停谁？](id:when)
 
-1. futex
-
-	sleep/Lock internal
-1. blocking syscall
-1. netpoll
 	
-	socket, pipe
-1. chan
-1. syncSema （count may < 0）
 	
-	mutex, cond
-	rwmutex (write-preferring)
-1. timer
-
-1. preemption
 	
-	syscall block > 20us
-	
-	running > 10 ms
 	
 
 
@@ -112,10 +95,113 @@ S: syscall
 W: waiting
 ```
 
+# [调度时机，即什么时候停、停谁？](id:when)
 
+
+	
 
 ## sysmon
 
-1. run every 20 us
-1. netpoll every 10ms  （nb）
-1. preemption
+```
+	forcegcperiod := int64(2 * 60 * 1e9)
+	scavengelimit := int64(5 * 60 * 1e9)
+	while True:
+		usleep(delay)
+		if not polled for more than 10ms:
+			gp := netpoll(false) // non-blocking ,返回一个list！
+			injectglist(gp) // 全部加入globalrunq，如果有idle的P，startm
+		retake(now) // retake P's blocked in syscalls 
+		 			// preempt long running G's
+		if 超过 forcegcperiod 没有gc:
+			injectglist(forcegc.g)
+		if lastscavenge+scavengelimit/2 < now：
+			mHeap_Scavenge(int32(nscavenge), uint64(now), uint64(scavengelimit)
+			
+```
+
+
+
+* 注意 mHeap_Scavenge只在此处被自动触发
+	* 除非user 调用debug.FreeOSMemory())
+* 但是malloc有时好像会是否少量span。
+* 
+概括一下：
+
+
+1. run every / 20 us
+2. try retake / 20(us)
+1. netpoll every / 10ms (nonblocking)
+2. gc / 2分钟
+1. free os mem / 5分钟
+
+
+### forcegchelper 
+
+从开始一直在跑，虽然名字中有“force”，但是普通的并发 gc(gcBackgroundMode)
+
+```
+func init() {
+	go forcegchelper()
+}
+func forcegchelper() {
+	startGC(gcBackgroundMode, true)
+}
+```
+
+##  preemption
+
+retake() 只在sysmon 被调用
+
+```
+for each _p_:
+	s := _p_.status
+	if s == _Psyscall:
+		if it's there for more than 1 sysmon tick (at least 20us):
+	 		handoffp(_p_)
+	elif s == _Prunning:
+		if 跑了超过 10 ms：
+			preemptone(_p_)
+				gp.preempt = true
+				gp.stackguard0 = stackPreempt
+
+```
+注释云：
+
+1. best-effort
+2. The actual preemption will happen at some point in the future
+
+这里的时机是 newstack (// Called from runtime·morestack when more stack is needed.):
+
+```
+preempt := atomicloaduintptr(&gp.stackguard0) == stackPreempt
+if preempt:
+	gopreempt_m(gp) // never return
+		goschedImpl
+			dropg
+			globrunqput(gp)
+			schedule()
+```
+
+	// We are interested in preempting user Go code, not runtime code.
+	// If we're holding locks, mallocing, or preemption is disabled, don't
+	// preempt.
+
+
+
+
+
+
+## futex
+	sleep/Lock internal
+	
+## blocking syscall
+## netpoll
+	
+	socket, pipe
+##  chan
+##  syncSema （count may < 0）
+	
+	mutex, cond
+	
+## timer
+
