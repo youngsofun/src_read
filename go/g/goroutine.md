@@ -1,6 +1,7 @@
 
 next [schedule](schedule.md)
 
+0. [G, P, M 概述](#gpm)
 1. [基础](#jichu)
     1. [getg](#getg)
     2. [mutex](#mutex)
@@ -14,6 +15,7 @@ next [schedule](schedule.md)
 4. [G](#G)
  	2. G 的创建[newproc](#newproc)
 
+# [G, P, M 概述](id:gpm)
 
 go 1.5 中
 结构定义在 [runtime2.go](https://github.com/youngsofun/go/blob/master/src/runtime/runtime2.go#L211) 中,
