@@ -1,1 +1,1 @@
-[go](go/)	
+[golang 1.5 源码分析](go/index.md)	
